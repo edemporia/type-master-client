@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "TypeKids",
+    "slug": "typekids",
+    "version": "1.0.0",
+    "orientation": "landscape",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4A90D9"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#4A90D9",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.typekids.app"
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-screen-orientation",
+      [
+        "react-native-reanimated/plugin"
+      ]
+    ]
+  }
+}
