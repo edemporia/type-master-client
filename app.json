@@ -21,11 +21,8 @@
       "package": "com.typekids.app"
     },
     "plugins": [
-      "expo-sqlite",
-      "expo-screen-orientation",
-      [
-        "react-native-reanimated/plugin"
-      ]
+      "expo-asset",
+      "expo-font"
     ]
   }
 }
