@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
 import { DatabaseProvider, useDatabase } from './src/hooks/useDatabase';
+import { startBackgroundSync, stopBackgroundSync } from './src/utils/sync';
 import type { RootStackParamList, TabParamList } from './src/types';
 
 // Screens
@@ -11,6 +12,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import CampaignScreen from './src/screens/CampaignScreen';
 import GamesScreen from './src/screens/GamesScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import LeaderboardScreen from './src/screens/LeaderboardScreen';
 import ProfileCreateScreen from './src/screens/ProfileCreateScreen';
 import CampaignDetailScreen from './src/screens/CampaignDetailScreen';
 import StageDetailScreen from './src/screens/StageDetailScreen';
@@ -28,8 +30,10 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
 function TabIcon({ label, focused }: { label: string; focused: boolean }) {
-  const icons: Record<string, string> = { Home: '🏠', Campaign: '📚', Games: '🎮', Profile: '👤' };
-  return <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>{icons[label] || '•'}</Text>;
+  const icons: Record<string, string> = {
+    Home: '🏠', Campaign: '📚', Games: '🎮', Leaderboard: '🏆', Profile: '👤',
+  };
+  return <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.5 }}>{icons[label] || '•'}</Text>;
 }
 
 function TabNavigator() {
@@ -40,19 +44,29 @@ function TabNavigator() {
         tabBarIcon: ({ focused }) => <TabIcon label={route.name} focused={focused} />,
         tabBarActiveTintColor: '#4A90D9',
         tabBarInactiveTintColor: '#A0AEC0',
-        tabBarStyle: { height: 60, paddingBottom: 8 },
+        tabBarStyle: { height: 56, paddingBottom: 6 },
+        tabBarLabelStyle: { fontSize: 11 },
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Campaign" component={CampaignScreen} />
       <Tab.Screen name="Games" component={GamesScreen} />
+      <Tab.Screen name="Leaderboard" component={LeaderboardScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
 
 function AppNavigator() {
-  const { user } = useDatabase();
+  const { db, user } = useDatabase();
+
+  // Start background sync when user is logged in
+  useEffect(() => {
+    if (user) {
+      startBackgroundSync(db, user.id);
+      return () => stopBackgroundSync();
+    }
+  }, [user]);
 
   return (
     <Stack.Navigator
@@ -63,7 +77,7 @@ function AppNavigator() {
       }}
     >
       {!user ? (
-        <Stack.Screen name="ProfileCreate" component={ProfileCreateScreen} options={{ title: 'Welcome to TypeKids', headerShown: false }} />
+        <Stack.Screen name="ProfileCreate" component={ProfileCreateScreen} options={{ headerShown: false }} />
       ) : (
         <>
           <Stack.Screen name="Tabs" component={TabNavigator} options={{ headerShown: false }} />
@@ -72,7 +86,7 @@ function AppNavigator() {
           <Stack.Screen name="TypingLesson" component={TypingLessonScreen} options={{ title: 'Typing', headerBackVisible: false }} />
           <Stack.Screen name="VideoLesson" component={VideoLessonScreen} options={{ title: 'Video Lesson' }} />
           <Stack.Screen name="PromptLesson" component={PromptLessonScreen} options={{ title: '', headerTransparent: true }} />
-          <Stack.Screen name="LessonComplete" component={LessonCompleteScreen} options={{ title: '', headerShown: false }} />
+          <Stack.Screen name="LessonComplete" component={LessonCompleteScreen} options={{ headerShown: false }} />
           <Stack.Screen name="MeteorFall" component={MeteorFallScreen} options={{ title: 'Meteor Fall', headerTransparent: true, headerTintColor: '#FFF' }} />
           <Stack.Screen name="Waterfall" component={WaterfallScreen} options={{ title: 'Waterfall', headerTransparent: true, headerTintColor: '#FFF' }} />
           <Stack.Screen name="BalloonPop" component={BalloonPopScreen} options={{ title: 'Balloon Pop' }} />

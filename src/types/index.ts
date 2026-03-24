@@ -104,7 +104,7 @@ export type RootStackParamList = {
   TypingLesson: { lessonId: number };
   VideoLesson: { lessonId: number };
   PromptLesson: { lessonId: number };
-  LessonComplete: { lessonId: number; stars: number; accuracy: number; wpm: number };
+  LessonComplete: { lessonId: number; stars: number; accuracy: number; wpm: number; troubleSpots?: string[] };
   MeteorFall: undefined;
   Waterfall: undefined;
   BalloonPop: undefined;
@@ -116,6 +116,7 @@ export type TabParamList = {
   Home: undefined;
   Campaign: undefined;
   Games: undefined;
+  Leaderboard: undefined;
   Profile: undefined;
 };
 

@@ -107,6 +107,71 @@ export async function saveProgress(
   );
 }
 
+// Check if all lessons in a stage are completed with enough stars
+export async function isStageCompleted(db: SQLiteDatabase, userId: number, stageId: number): Promise<boolean> {
+  const row = await db.getFirstAsync<any>(
+    `SELECT
+       COUNT(*) as total,
+       SUM(CASE WHEN p.completed = 1 AND p.stars >= 4 THEN 1 ELSE 0 END) as passed
+     FROM lessons l
+     LEFT JOIN progress p ON p.lesson_id = l.id AND p.user_id = ?
+     WHERE l.stage_id = ?`,
+    [userId, stageId]
+  );
+  if (!row || row.total === 0) return false;
+  return row.passed >= row.total;
+}
+
+// Get completion stats for a stage (how many lessons completed out of total)
+export async function getStageCompletionStats(
+  db: SQLiteDatabase, userId: number, stageId: number
+): Promise<{ total: number; completed: number; avgStars: number }> {
+  const row = await db.getFirstAsync<any>(
+    `SELECT
+       COUNT(*) as total,
+       SUM(CASE WHEN p.completed = 1 THEN 1 ELSE 0 END) as completed,
+       COALESCE(AVG(CASE WHEN p.stars > 0 THEN p.stars END), 0) as avg_stars
+     FROM lessons l
+     LEFT JOIN progress p ON p.lesson_id = l.id AND p.user_id = ?
+     WHERE l.stage_id = ?`,
+    [userId, stageId]
+  );
+  return {
+    total: row?.total || 0,
+    completed: row?.completed || 0,
+    avgStars: Math.round((row?.avg_stars || 0) * 10) / 10,
+  };
+}
+
+// Save leaderboard entry
+export async function saveLeaderboardEntry(
+  db: SQLiteDatabase, entry: { userId: number; testId: string; score: number }
+): Promise<void> {
+  await db.runAsync(
+    'INSERT INTO leaderboard (user_id, test_id, score, rank, synced) VALUES (?, ?, ?, 0, 0)',
+    [entry.userId, entry.testId, entry.score]
+  );
+}
+
+// Get leaderboard entries
+export async function getLeaderboard(db: SQLiteDatabase): Promise<Array<{
+  nickname: string; avatarConfig: string; score: number; testId: string
+}>> {
+  const rows = await db.getAllAsync<any>(
+    `SELECT u.nickname, u.avatar_config, l.score, l.test_id
+     FROM leaderboard l
+     JOIN users u ON u.id = l.user_id
+     ORDER BY l.score DESC
+     LIMIT 50`
+  );
+  return rows.map(r => ({
+    nickname: r.nickname,
+    avatarConfig: r.avatar_config,
+    score: r.score,
+    testId: r.test_id,
+  }));
+}
+
 function mapProgress(row: any): Progress {
   return {
     id: row.id, userId: row.user_id, lessonId: row.lesson_id,
