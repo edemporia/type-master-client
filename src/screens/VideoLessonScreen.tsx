@@ -117,7 +117,7 @@ export default function VideoLessonScreen() {
             )}
 
             <Text style={styles.videoNote}>
-              Video content will be bundled when assets are provided
+              Tap Continue when you're ready
             </Text>
           </View>
         </View>

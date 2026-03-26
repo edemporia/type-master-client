@@ -1,4 +1,3 @@
-import { BleManager, Device, Characteristic } from 'react-native-ble-plx';
 import { Platform, PermissionsAndroid } from 'react-native';
 
 // TypeKids Bluetooth service UUID (custom)
@@ -14,14 +13,28 @@ export interface MultiplayerResult {
   completedAt: number;
 }
 
+// Dynamically import BLE — it requires a native build and won't work in Expo Go
+let BleManager: any = null;
+try {
+  const ble = require('react-native-ble-plx');
+  BleManager = ble.BleManager;
+} catch {
+  // BLE not available (Expo Go or missing native module)
+}
+
 class BluetoothService {
-  private manager: BleManager;
-  private connectedDevice: Device | null = null;
+  private manager: any = null;
+  private connectedDevice: any = null;
   private onProgressUpdate: ((progress: number) => void) | null = null;
   private onGameResult: ((result: MultiplayerResult) => void) | null = null;
 
-  constructor() {
-    this.manager = new BleManager();
+  get isAvailable(): boolean {
+    return BleManager !== null;
+  }
+
+  private ensureManager() {
+    if (!BleManager) throw new Error('Bluetooth not available — requires native build');
+    if (!this.manager) this.manager = new BleManager();
   }
 
   async requestPermissions(): Promise<boolean> {
@@ -43,6 +56,7 @@ class BluetoothService {
     onDeviceFound: (device: { id: string; name: string }) => void,
     timeoutMs: number = 10000
   ): Promise<void> {
+    this.ensureManager();
     const hasPermission = await this.requestPermissions();
     if (!hasPermission) throw new Error('Bluetooth permissions denied');
 
@@ -52,7 +66,7 @@ class BluetoothService {
       this.manager.startDeviceScan(
         [SERVICE_UUID],
         { allowDuplicates: false },
-        (error, device) => {
+        (error: any, device: any) => {
           if (error) return;
           if (device && device.name && !seen.has(device.id)) {
             seen.add(device.id);
@@ -69,31 +83,30 @@ class BluetoothService {
   }
 
   stopScan(): void {
-    this.manager.stopDeviceScan();
+    this.manager?.stopDeviceScan();
   }
 
   async connectToDevice(deviceId: string): Promise<boolean> {
+    this.ensureManager();
     try {
       const device = await this.manager.connectToDevice(deviceId);
       await device.discoverAllServicesAndCharacteristics();
       this.connectedDevice = device;
 
-      // Listen for opponent progress updates
       device.monitorCharacteristicForService(
         SERVICE_UUID,
         CHAR_PROGRESS_UUID,
-        (error, characteristic) => {
+        (error: any, characteristic: any) => {
           if (error || !characteristic?.value) return;
           const progress = parseFloat(atob(characteristic.value));
           this.onProgressUpdate?.(progress);
         }
       );
 
-      // Listen for opponent result
       device.monitorCharacteristicForService(
         SERVICE_UUID,
         CHAR_RESULT_UUID,
-        (error, characteristic) => {
+        (error: any, characteristic: any) => {
           if (error || !characteristic?.value) return;
           try {
             const result = JSON.parse(atob(characteristic.value));
@@ -149,7 +162,7 @@ class BluetoothService {
 
   destroy(): void {
     this.disconnect();
-    this.manager.destroy();
+    this.manager?.destroy();
   }
 }
 

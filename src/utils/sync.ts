@@ -1,51 +1,67 @@
 import NetInfo from '@react-native-community/netinfo';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-const API_BASE = 'https://api.typekids.app'; // TODO: configure per environment
+// Configure this to your backend URL
+// For local dev: 'http://10.49.19.56:3000' (your PC's IP)
+// For production: 'https://api.typekids.app'
+const API_BASE = 'https://api.typekids.app';
 
 interface SyncPayload {
-  user_id: number;
+  userId: number;
+  deviceId: string;
   progress: any[];
-  keystroke_logs: any[];
-  game_scores: any[];
+  keystrokeLogs: any[];
+  gameScores: any[];
 }
 
-// Collect all unsynced local data and push to server
+// Collect unsynced local data
 async function collectSyncData(db: SQLiteDatabase, userId: number): Promise<SyncPayload> {
+  // Get device_id from user
+  const user = await db.getFirstAsync<any>(
+    'SELECT device_id FROM users WHERE id = ?', [userId]
+  );
+
   const progress = await db.getAllAsync<any>(
     'SELECT * FROM progress WHERE user_id = ?', [userId]
   );
+
+  // Only push unsynced keystroke logs
   const keystrokeLogs = await db.getAllAsync<any>(
-    'SELECT * FROM keystroke_logs WHERE user_id = ? ORDER BY id DESC LIMIT 500', [userId]
+    'SELECT * FROM keystroke_logs WHERE user_id = ? AND synced = 0 ORDER BY id DESC LIMIT 500',
+    [userId]
   );
+
+  // Only push unsynced game scores
   const gameScores = await db.getAllAsync<any>(
-    'SELECT * FROM game_scores WHERE user_id = ? ORDER BY id DESC LIMIT 100', [userId]
+    'SELECT * FROM game_scores WHERE user_id = ? AND synced = 0 ORDER BY id DESC LIMIT 100',
+    [userId]
   );
 
   return {
-    user_id: userId,
+    userId,
+    deviceId: user?.device_id || '',
     progress: progress.map(p => ({
-      lesson_id: p.lesson_id,
+      lessonId: p.lesson_id,
       completed: !!p.completed,
       stars: p.stars,
       accuracy: p.accuracy,
       wpm: p.wpm,
-      completed_at: p.completed_at,
+      completedAt: p.completed_at,
     })),
-    keystroke_logs: keystrokeLogs.map(l => ({
-      session_id: l.session_id,
-      lesson_id: l.lesson_id,
-      expected_char: l.expected_char,
-      pressed_char: l.pressed_char,
+    keystrokeLogs: keystrokeLogs.map(l => ({
+      sessionId: l.session_id,
+      lessonId: l.lesson_id,
+      expectedChar: l.expected_char,
+      pressedChar: l.pressed_char,
       timestamp: l.timestamp,
-      delay_ms: l.delay_ms,
+      delayMs: l.delay_ms,
     })),
-    game_scores: gameScores.map(g => ({
-      game_type: g.game_type,
+    gameScores: gameScores.map(g => ({
+      gameType: g.game_type,
       score: g.score,
       accuracy: g.accuracy,
       wpm: g.wpm,
-      played_at: g.played_at,
+      playedAt: g.played_at,
     })),
   };
 }
@@ -90,7 +106,13 @@ async function pullFromServer(userId: number, db: SQLiteDatabase): Promise<boole
   }
 }
 
-// Main sync function — call this when network becomes available
+// Mark records as synced after successful push
+async function markAsSynced(db: SQLiteDatabase, userId: number): Promise<void> {
+  await db.runAsync('UPDATE keystroke_logs SET synced = 1 WHERE user_id = ? AND synced = 0', [userId]);
+  await db.runAsync('UPDATE game_scores SET synced = 1 WHERE user_id = ? AND synced = 0', [userId]);
+}
+
+// Main sync function — call when network becomes available
 export async function performSync(db: SQLiteDatabase, userId: number): Promise<{ success: boolean }> {
   const netState = await NetInfo.fetch();
   if (!netState.isConnected) return { success: false };
@@ -99,6 +121,7 @@ export async function performSync(db: SQLiteDatabase, userId: number): Promise<{
     const payload = await collectSyncData(db, userId);
     const pushOk = await pushToServer(payload);
     if (pushOk) {
+      await markAsSynced(db, userId);
       await pullFromServer(userId, db);
     }
     return { success: pushOk };
@@ -107,7 +130,7 @@ export async function performSync(db: SQLiteDatabase, userId: number): Promise<{
   }
 }
 
-// Background sync listener — starts monitoring network and syncs when online
+// Background sync listener — monitors network and syncs when online
 let unsubscribe: (() => void) | null = null;
 
 export function startBackgroundSync(db: SQLiteDatabase, userId: number): void {
